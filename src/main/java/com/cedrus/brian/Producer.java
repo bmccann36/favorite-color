@@ -26,14 +26,15 @@ public class Producer {
         // create the producer
         KafkaProducer<String, String> producer = new KafkaProducer<String, String>(properties);
 
-        producer.send(new ProducerRecord<>("input_topic", "stephane", "blue"));
-        producer.send(new ProducerRecord<>("input_topic","bob", "purple"));
-        producer.send(new ProducerRecord<>("input_topic", "john", "green"));
-        producer.send(new ProducerRecord<>("input_topic", "stephane","red"));
-        producer.send(new ProducerRecord<>("input_topic", "alice","red"));
+        producer.send(new ProducerRecord<>("favorite-color-input", "stephane,blue"));
+        producer.send(new ProducerRecord<>("favorite-color-input","bob,purple"));
+        producer.send(new ProducerRecord<>("favorite-color-input", "john,green"));
+        producer.send(new ProducerRecord<>("favorite-color-input", "stephane,red"));
+        producer.send(new ProducerRecord<>("favorite-color-input", "alice,red"));
+        producer.send(new ProducerRecord<>("favorite-color-input", "john,blue"));
 
 
-        producer.flush();
-        producer.close();
+        producer.flush(); // dealing we/ async
+        producer.close(); // graceful close
     }
 }

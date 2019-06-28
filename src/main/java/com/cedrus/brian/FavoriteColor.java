@@ -1,6 +1,5 @@
 package com.cedrus.brian;
 
-
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.*;
@@ -10,58 +9,47 @@ import java.util.Properties;
 
 public class FavoriteColor {
 
-
     public static void main(String[] args) {
-        Properties config = new Properties();
-
-        config.put(StreamsConfig.APPLICATION_ID_CONFIG, "kstreams");
-        config.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
-        config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        config.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
-        config.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
+        Properties properties = new Properties();
+        properties.put(StreamsConfig.APPLICATION_ID_CONFIG, "favorite-color-app");
+        properties.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
+        properties.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
+        properties.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
+        properties.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
 
         StreamsBuilder builder = new StreamsBuilder();
 
-//        KTable<String, String> rawTable = builder.table("input_topic");
+        KStream<String, String> inputTopicStream = builder.stream("favorite-color-input");
 
-//        rawTable.groupBy((key, value)-> {
-//            return
-//        })
-
-
-        KStream<String, String> baseStream = builder.stream("input_topic");
-
-
-        KGroupedStream<String, String> newGroup = baseStream.groupBy((key,val)-> {
-            System.out.println(val);
-            return val;
+        KStream<String, String> keyAddedStream = inputTopicStream.selectKey((key, val) -> {
+            return val.split(",")[0];
         });
 
-        KTable finalTable = newGroup.count(Materialized.as("my-store"));
-
-        finalTable.mapValues((key,val)->{
-            System.out.printf("%s  %s \n", key,val);
-            return val;
+        KStream<String, String> valueUpdatedStream = keyAddedStream.mapValues((unusedKey, val) -> {
+            return val.split(",")[1].toLowerCase();
         });
 
+        KStream<String, String> filteredColorStream = valueUpdatedStream.filter((key, val) -> {
+            return val.equals("green") || val.equals("blue") || val.equals("red");
+        });
 
-//        KStream filtered = baseStream.filter((key, val) -> {
-//            return val.contains("red") || val.contains("green") || val.contains("blue");
-//        });
-//        KStream<String, String> transformed = filtered.mapValues(val -> {
-//            System.out.println(val.getClass().getName());
-//            String [] split = ((String) val).split(",");
-//            System.out.println(split[0]);
-//            return val;
-//        });
+        filteredColorStream.to("intermediate-topic", Produced.with(Serdes.String(), Serdes.String())); // create in
+        // order to publish stream to a k table to eliminate repeats
 
-//        filtered.print(Printed.toSysOut());
+        KTable<String, String> rawTable = builder.table("intermediate-topic");
 
-        final Topology topo = builder.build();
-        KafkaStreams streams = new KafkaStreams(topo, config);
+        KGroupedTable<String, String> groupedTable = rawTable
+                .groupBy((key, value) -> new KeyValue<String, String>(value, value));
+
+        KTable<String, Long> countColors = groupedTable.count(Materialized.as("count"));
+
+        countColors.toStream().print(Printed.toSysOut());
+
+        countColors.toStream().to("favorite-color-output", Produced.with(Serdes.String(), Serdes.Long()));
+
+        KafkaStreams streams = new KafkaStreams(builder.build(), properties);
         streams.start();
-        // shutdown hook to correctly close the streams application
         Runtime.getRuntime().addShutdownHook(new Thread(streams::close));
-    }
 
+    }
 }
