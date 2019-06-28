@@ -26,11 +26,11 @@ public class Producer {
         // create the producer
         KafkaProducer<String, String> producer = new KafkaProducer<String, String>(properties);
 
-        producer.send(new ProducerRecord<>("hello-world", "stephane,blue"));
-        producer.send(new ProducerRecord<>("hello-world", "bob,purple"));
-        producer.send(new ProducerRecord<>("hello-world", "john,green"));
-        producer.send(new ProducerRecord<>("hello-world", "stephane,red"));
-        producer.send(new ProducerRecord<>("hello-world", "alice,red"));
+        producer.send(new ProducerRecord<>("input_topic", "stephane", "blue"));
+        producer.send(new ProducerRecord<>("input_topic","bob", "purple"));
+        producer.send(new ProducerRecord<>("input_topic", "john", "green"));
+        producer.send(new ProducerRecord<>("input_topic", "stephane","red"));
+        producer.send(new ProducerRecord<>("input_topic", "alice","red"));
 
 
         producer.flush();

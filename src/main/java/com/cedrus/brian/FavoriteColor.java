@@ -22,18 +22,38 @@ public class FavoriteColor {
 
         StreamsBuilder builder = new StreamsBuilder();
 
-        KStream<String, String> baseStream = builder.stream("hello-world");
+//        KTable<String, String> rawTable = builder.table("input_topic");
 
-        KStream filtered = baseStream.filter((key, val) -> {
-            return val.contains("red") || val.contains("green") || val.contains("blue");
-        });
-        KStream<String, String> transformed = filtered.mapValues(val -> {
-            System.out.println(val.getClass().getName());
-            String [] split = ((String) val).split(",");
-            System.out.println(split[0]);
-//            KeyValue keyVal =
+//        rawTable.groupBy((key, value)-> {
+//            return
+//        })
+
+
+        KStream<String, String> baseStream = builder.stream("input_topic");
+
+
+        KGroupedStream<String, String> newGroup = baseStream.groupBy((key,val)-> {
+            System.out.println(val);
             return val;
         });
+
+        KTable finalTable = newGroup.count(Materialized.as("my-store"));
+
+        finalTable.mapValues((key,val)->{
+            System.out.printf("%s  %s \n", key,val);
+            return val;
+        });
+
+
+//        KStream filtered = baseStream.filter((key, val) -> {
+//            return val.contains("red") || val.contains("green") || val.contains("blue");
+//        });
+//        KStream<String, String> transformed = filtered.mapValues(val -> {
+//            System.out.println(val.getClass().getName());
+//            String [] split = ((String) val).split(",");
+//            System.out.println(split[0]);
+//            return val;
+//        });
 
 //        filtered.print(Printed.toSysOut());
 
