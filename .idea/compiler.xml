@@ -10,5 +10,8 @@
         <module name="favorite-color" />
       </profile>
     </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="favorite-color" target="1.8" />
+    </bytecodeTargetLevel>
   </component>
 </project>
