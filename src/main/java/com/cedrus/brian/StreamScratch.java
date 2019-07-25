@@ -21,10 +21,8 @@ import org.apache.kafka.streams.*;
 import org.apache.kafka.streams.kstream.*;
 import org.apache.kafka.streams.kstream.internals.TimeWindow;
 import org.apache.kafka.streams.processor.internals.StreamThread;
-import org.apache.kafka.streams.state.QueryableStoreTypes;
-import org.apache.kafka.streams.state.ReadOnlyWindowStore;
-import org.apache.kafka.streams.state.WindowStore;
-import org.apache.kafka.streams.state.WindowStoreIterator;
+import org.apache.kafka.streams.state.*;
+import org.apache.kafka.common.serialization.Serdes;
 
 
 @Slf4j
@@ -35,34 +33,40 @@ public class StreamScratch {
         config.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "127.0.0.1:9092");
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
         config.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG, Serdes.String().getClass());
-        config.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.String().getClass());
+        config.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG, Serdes.Long().getClass());
 
         // we disable the cache to demonstrate all the "steps" involved in the transformation - not recommended in prod
         config.put(StreamsConfig.CACHE_MAX_BYTES_BUFFERING_CONFIG, "0");
 
         StreamsBuilder builder = new StreamsBuilder();
         // Step 1: We create the topic of users keys to colours
-        KStream<String, String> initialStream = builder.stream("inventory-topic02");
+        KStream<String, Long> initialStream = builder.stream("num_topic01");
 
-        final KGroupedStream<String, String> groupedStream = initialStream.groupByKey();
+        final KGroupedStream<String, Long> groupedStream = initialStream.groupByKey();
 
-        Materialized<String, String, WindowStore<Bytes, byte[]>> materializedAttritionStore = Materialized.as("windowedStore");
 
-        final Windows<TimeWindow> timeWindow = TimeWindows.of(Duration.ofMillis(10000));
+        final Serde<Long> longSerde = Serdes.Long();
 
-        final TimeWindowedKStream<String, String> tenSecWindowStream =
+
+        Materialized<String, Long, WindowStore<Bytes, byte[]>> materializedAttritionStore = Materialized.as("myStore");
+        Long windowSizeMs = TimeUnit.SECONDS.toMillis(3);
+        final Windows<TimeWindow> timeWindow = TimeWindows.of(windowSizeMs);
+        final TimeWindowedKStream<String, Long> weekWindowStream = groupedStream.windowedBy(timeWindow);
+
+        final TimeWindowedKStream<String, Long> tenSecWindowStream =
                 groupedStream.windowedBy(timeWindow);
 
-        KTable myTable = tenSecWindowStream.aggregate(() -> "", getAggregator(), materializedAttritionStore);
+//        KTable<Windowed<String>, Long> myTable =
+        tenSecWindowStream.aggregate(getDiscardAttritionInitializer(), getAggregator(), materializedAttritionStore);
 
         KafkaStreams streams = new KafkaStreams(builder.build(), config);
         KafkaStreams.StateListener stateListener = new KafkaStreams.StateListener() {
             @Override
             public void onChange(KafkaStreams.State newState, KafkaStreams.State oldState) {
                 System.out.println(newState);
-              if(newState == KafkaStreams.State.RUNNING){
-                  accessStore(streams);
-              }
+                if (newState == KafkaStreams.State.RUNNING) {
+                    accessStore(streams);
+                }
             }
         };
         streams.setStateListener(stateListener);
@@ -74,29 +78,36 @@ public class StreamScratch {
         Runtime.getRuntime().addShutdownHook(new Thread(streams::close));
     }
 
+    private Initializer<Long> getDiscardAttritionInitializer() {
+        return () -> 0L;
+    }
 
-        private void accessStore(KafkaStreams streams) {
-            ReadOnlyWindowStore<String, String> stateStore = streams.store("windowedStore", QueryableStoreTypes.windowStore());
-            Instant from = Instant.now().minus(2, ChronoUnit.MINUTES);
-            Instant to = Instant.now();
 
-            WindowStoreIterator<String> windowIterator = stateStore.fetch("key01", from, to);
-            while (windowIterator.hasNext()) {
-                KeyValue<Long, String> keyValue = windowIterator.next();
-                // Get the interval record and parse it
-                System.out.println("key:  " + keyValue.key + "  val:  " + keyValue.value);
+    private void accessStore(KafkaStreams streams) {
+        ReadOnlyWindowStore<String, Long> stateStore = streams.store("myStore", QueryableStoreTypes.windowStore());
+        Instant from = Instant.now().minus(5, ChronoUnit.DAYS);
+        Instant to = Instant.now();
 
-            }
+        KeyValueIterator<Windowed<String>, Long> windowIterator = stateStore.all();
+        while (windowIterator.hasNext()) {
+            KeyValue<Windowed<String>, Long> keyValue = windowIterator.next();
+            // Get the interval record and parse it
+            System.out.println("key:  " + keyValue.key + "  val:  " + keyValue.value);
+
         }
+    }
+
+    private static Initializer<Long> getInit() {
+        return () -> 0L;
+    }
 
 
-    private static Aggregator<String, String, String> getAggregator() {
+    private static Aggregator<String, Long, Long> getAggregator() {
         return (key, val, aggregate) -> {
-//            System.out.println("key is: " + key);
-//            System.out.println("aggregate is: " + aggregate);
-            aggregate = aggregate + " - - " + val;
-//            System.out.println("after adding aggregate is: " + aggregate);
-            return aggregate;
+            System.out.println("key is: " + key);
+            System.out.println("aggregate is: " + aggregate);
+            System.out.println("after adding aggregate is: " + aggregate);
+            return aggregate += val;
         };
 
     }
