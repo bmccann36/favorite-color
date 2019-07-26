@@ -20,6 +20,7 @@ import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.*;
 import org.apache.kafka.streams.kstream.*;
 import org.apache.kafka.streams.kstream.internals.TimeWindow;
+import org.apache.kafka.streams.processor.StateStore;
 import org.apache.kafka.streams.processor.internals.StreamThread;
 import org.apache.kafka.streams.state.*;
 import org.apache.kafka.common.serialization.Serdes;
@@ -48,9 +49,18 @@ public class StreamScratch {
         final Serde<Long> longSerde = Serdes.Long();
 
 
+        Instant start = Instant.parse("2019-01-01T00:00:00.00Z");
+        Instant end = Instant.now();
+        Duration retention = Duration.between(start, end);
+
+        Instant windowStart = Instant.now().minus(5, ChronoUnit.SECONDS);
+        Instant windowEnd = Instant.now();
+        Duration windowDur = Duration.between(windowStart, windowEnd);
+
+
         Materialized<String, Long, WindowStore<Bytes, byte[]>> materializedAttritionStore = Materialized.as("myStore");
         Long windowSizeMs = TimeUnit.SECONDS.toMillis(3);
-        final Windows<TimeWindow> timeWindow = TimeWindows.of(windowSizeMs);
+        final Windows<TimeWindow> timeWindow = TimeWindows.of(windowDur).until(TimeUnit.DAYS.toMillis(200));
         final TimeWindowedKStream<String, Long> weekWindowStream = groupedStream.windowedBy(timeWindow);
 
         final TimeWindowedKStream<String, Long> tenSecWindowStream =
@@ -85,7 +95,7 @@ public class StreamScratch {
 
     private void accessStore(KafkaStreams streams) {
         ReadOnlyWindowStore<String, Long> stateStore = streams.store("myStore", QueryableStoreTypes.windowStore());
-        Instant from = Instant.now().minus(5, ChronoUnit.DAYS);
+        Instant from = Instant.now().minus(1, ChronoUnit.DAYS);
         Instant to = Instant.now();
 
         KeyValueIterator<Windowed<String>, Long> windowIterator = stateStore.all();
@@ -105,6 +115,7 @@ public class StreamScratch {
     private static Aggregator<String, Long, Long> getAggregator() {
         return (key, val, aggregate) -> {
             System.out.println("key is: " + key);
+            System.out.println("value is " + val);
             System.out.println("aggregate is: " + aggregate);
             System.out.println("after adding aggregate is: " + aggregate);
             return aggregate += val;

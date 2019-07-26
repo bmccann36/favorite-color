@@ -29,11 +29,10 @@ public class Producer {
 
 //        long time = 1554076800000l;
 
-//        producer.send(new ProducerRecord("num_topic01", null, 1563926400000l,"key_in", 5l));
-        producer.send(new ProducerRecord("num_topic01", null, 1563926400000l,"key_in", 5l)); // seems to work when timestamp is within range
-        producer.send(new ProducerRecord("num_topic01", null, 1563926600000l,"key_in", 5l));
-        producer.send(new ProducerRecord("num_topic01", null, 1563926700000l,"key_in", 5l));
-        producer.send(new ProducerRecord("num_topic01", null, 1563926800000l,"key_in", 5l));
+        producer.send(new ProducerRecord("num_topic01", null, "un_stamped", 5l));
+        producer.send(new ProducerRecord("num_topic01", null, 1551398400000l,"old_msg", 20l));
+        producer.send(new ProducerRecord("num_topic01", null, 1451606400000l,"really_old_msg", 20l));
+
 
 
         producer.flush();
